@@ -3,13 +3,17 @@ from __future__ import unicode_literals
 import mimetypes
 import os.path
 from io import BytesIO
+import logging
+import random
+import time
 
 import django
 import enum
 import httplib2
 import six
 from apiclient.discovery import build
-from apiclient.http import MediaIoBaseUpload
+from apiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from apiclient.errors import HttpError
 from dateutil.parser import parse
 from django.conf import settings
 from django.core.files import File
@@ -18,6 +22,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 DJANGO_VERSION = django.VERSION[:2]
 
+logger = logging.getLogger(__name__)
 
 class GoogleDrivePermissionType(enum.Enum):
     """
@@ -154,6 +159,21 @@ _ANYONE_CAN_READ_PERMISSION_ = GoogleDriveFilePermission(
     GoogleDrivePermissionType.ANYONE
 )
 
+class ChunkFile(File):
+    def __init__(self, request, name):
+        self.request = request
+        self.name = name
+
+    def chunks(self, chunk_size=None):
+        fh = BytesIO()
+        downloader = MediaIoBaseDownload(fh, self.request)
+
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk(num_retries=5)
+            print("Download %0.2f%%." % (status.progress() * 100))
+            fh.seek(0)
+            yield fh.read()
 
 class GoogleDriveStorage(Storage):
     """
@@ -167,7 +187,7 @@ class GoogleDriveStorage(Storage):
     _GOOGLE_DRIVE_FOLDER_MIMETYPE_ = "application/vnd.google-apps.folder"
 
     def __init__(self, json_keyfile_path=None,
-                 permissions=None):
+                 permissions=None, delegate=None):
         """
         Handles credentials and builds the google service.
 
@@ -179,6 +199,8 @@ class GoogleDriveStorage(Storage):
 
         credentials = ServiceAccountCredentials.from_json_keyfile_name(self._json_keyfile_path,
                                                                        scopes=["https://www.googleapis.com/auth/drive"])
+        if delegate is not None:
+            credentials = credentials.create_delegated(delegate)
 
         http = httplib2.Http()
         http = credentials.authorize(http)
@@ -296,10 +318,8 @@ class GoogleDriveStorage(Storage):
 
     def _open(self, name, mode='rb'):
         file_data = self._check_file_exists(name)
-        response, content = self._drive_service._http.request(
-            file_data['downloadUrl'])
-
-        return File(BytesIO(content), name)
+        request = self._drive_service.files().get_media(fileId=file_data['id'])
+        return ChunkFile(request, name)
 
     def _save(self, name, content):
         folder_path = os.path.sep.join(self._split_path(name)[:-1])
@@ -307,11 +327,10 @@ class GoogleDriveStorage(Storage):
         parent_id = None if folder_data is None else folder_data['id']
         # Now we had created (or obtained) folder on GDrive
         # Upload the file
-        fd = BytesIO(content.file.read())
         mime_type = mimetypes.guess_type(name)
         if mime_type[0] is None:
             mime_type = self._UNKNOWN_MIMETYPE_
-        media_body = MediaIoBaseUpload(fd, mime_type, resumable=True)
+        media_body = MediaIoBaseUpload(content.file, mime_type, resumable=True)
         body = {
             'title': name,
             'mimeType': mime_type
@@ -319,13 +338,14 @@ class GoogleDriveStorage(Storage):
         # Set the parent folder.
         if parent_id:
             body['parents'] = [{'id': parent_id}]
+
         file_data = self._drive_service.files().insert(
             body=body,
-            media_body=media_body).execute()
+            media_body=media_body).execute(num_retries=20)
 
         # Setting up permissions
         for p in self._permissions:
-            self._drive_service.permissions().insert(fileId=file_data["id"], body=p.raw).execute()
+            self._drive_service.permissions().insert(fileId=file_data["id"], body=p.raw, sendNotificationEmails=False).execute()
 
         return file_data.get(u'originalFilename', file_data.get(u'title'))
 
@@ -424,6 +444,16 @@ class GoogleDriveStorage(Storage):
 
 if DJANGO_VERSION >= (1, 7):
     from django.utils.deconstruct import deconstructible
+
+    @deconstructible
+    class GoogleDriveFilePermission(GoogleDriveFilePermission):
+        def deconstruct(self):
+            path = "gdstorage.storage.GoogleDriveFilePermission"
+            args = [self._role, self._type]
+            kwargs = dict(g_value=None)
+            if self._value is not None:
+                kwargs['g_value'] = self._value
+            return path, args, kwargs
 
 
     @deconstructible
