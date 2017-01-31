@@ -348,7 +348,7 @@ class GoogleDriveStorage(Storage):
 
     def update_permissions(self, permissions):
         if isinstance(permissions, (tuple, list,)):
-            if isinstance(permissions[0], GoogleDriveFilePermission):
+            if len(permissions) > 0 and isinstance(permissions[0], GoogleDriveFilePermission):
                 self._permissions = [p.raw for p in permissions]
             else:
                 self._permissions = permissions
