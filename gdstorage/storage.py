@@ -396,7 +396,7 @@ class GoogleDriveStorage(Storage):
 
         # Setting up permissions
         for p in self._permissions:
-            self._drive_service.permissions().create(fileId=file_data["id"], body=p.raw, sendNotificationEmail=False).execute()
+            self._drive_service.permissions().create(fileId=file_data["id"], body=p, sendNotificationEmail=False).execute()
 
         return file_data['id']
 
