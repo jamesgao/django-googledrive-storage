@@ -238,15 +238,7 @@ class GoogleDriveStorage(Storage):
         if permissions is None:
             self._permissions = (_ANYONE_CAN_READ_PERMISSION_,)
         else:
-            if not isinstance(permissions, (tuple, list,)):
-                raise ValueError("Permissions should be a list or a tuple of GoogleDriveFilePermission instances")
-            else:
-                for p in permissions:
-                    if not isinstance(p, GoogleDriveFilePermission):
-                        raise ValueError(
-                            "Permissions should be a list or a tuple of GoogleDriveFilePermission instances")
-                # Ok, permissions are good
-                self._permissions = permissions
+            self.update_permissions(permissions)
 
         retries = 0
         self._drive_service = None
@@ -353,6 +345,15 @@ class GoogleDriveStorage(Storage):
 
     def _get(self, fileId, **kwargs):
         return self._drive_service.files().get(fileId=fileId, **kwargs).execute()
+
+    def update_permissions(self, permissions):
+        if isinstance(permissions, (tuple, list,)):
+            self._permissions = [p.raw for p in permissions]
+        elif isinstance(permissions, str):
+            import json
+            self._permissions = json.loads(permissions)
+        else:
+            raise TypeError
 
     # Methods that had to be implemented
     # to create a valid storage for Django
