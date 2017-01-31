@@ -348,7 +348,10 @@ class GoogleDriveStorage(Storage):
 
     def update_permissions(self, permissions):
         if isinstance(permissions, (tuple, list,)):
-            self._permissions = [p.raw for p in permissions]
+            if isinstance(permissions[0], GoogleDriveFilePermission):
+                self._permissions = [p.raw for p in permissions]
+            else:
+                self._permissions = permissions
         elif isinstance(permissions, str):
             import json
             self._permissions = json.loads(permissions)
