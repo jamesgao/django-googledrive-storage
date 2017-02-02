@@ -236,7 +236,7 @@ class GoogleDriveStorage(Storage):
 
     @property
     def service(self):
-        if self._drive_service is None:
+        if self._drive_service is None or time.time() - self._last > 3600:
             retries = 0
             self._drive_service = None
             while self._drive_service is None:
@@ -248,6 +248,7 @@ class GoogleDriveStorage(Storage):
                         self._creds = self._creds.create_delegated(self._delegate)
                     self._http = self._creds.authorize(httplib2.Http())
                     self._drive_service = build('drive', 'v3', http=self._http)
+                    self._last = time.time()        s
                 except HttpAccessTokenRefreshError as e:
                     warnings.warn("Error refreshing token: %s"%e)
                     time.sleep(2**retries+random.random())
