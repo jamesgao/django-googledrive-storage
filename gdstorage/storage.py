@@ -280,7 +280,6 @@ class GoogleDriveStorage(Storage):
         """
         folder_data = self._find_file(path, parent_id)
         if folder_data is None:
-            0/0
             # Folder does not exists, have to create
             split_path = self._split_path(path)
             current_folder_data = None
