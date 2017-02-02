@@ -256,7 +256,7 @@ class GoogleDriveStorage(Storage):
                         raise RuntimeError("Exceeded retry limit")
         return self._drive_service
 
-    def _split_path(self, p):
+    def _split_path(self, path):
         """
         Split a complete path in a list of strings
 
@@ -264,9 +264,7 @@ class GoogleDriveStorage(Storage):
         :type p: string
         :returns: list - List of strings that composes the path
         """
-        p = p[1:] if p[0] == '/' else p
-        a, b = os.path.split(p)
-        return (self._split_path(a) if len(a) and len(b) else []) + [b]
+        return [p for p in path.split("/") if len(p) > 0]
 
     def _get_or_create_folder(self, path, parent_id=None):
         """
@@ -282,7 +280,7 @@ class GoogleDriveStorage(Storage):
         """
         folder_data = self._find_file(path, parent_id)
         if folder_data is None:
-            import ipdb; ipdb.set_trace()
+            0/0
             # Folder does not exists, have to create
             split_path = self._split_path(path)
             current_folder_data = None
