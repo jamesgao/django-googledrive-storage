@@ -241,13 +241,13 @@ class GoogleDriveStorage(Storage):
             self._drive_service = None
             while self._drive_service is None:
                 try:
-                    creds = ServiceAccountCredentials.from_json_keyfile_name(
+                    self._creds = ServiceAccountCredentials.from_json_keyfile_name(
                         self._json_keyfile_path,
                         scopes=["https://www.googleapis.com/auth/drive"])
                     if self._delegate is not None:
-                        creds = creds.create_delegated(self._delegate)
-                    http = creds.authorize(httplib2.Http())
-                    self._drive_service = build('drive', 'v3', http=http)
+                        self._creds = self._creds.create_delegated(self._delegate)
+                    self._http = self._creds.authorize(httplib2.Http())
+                    self._drive_service = build('drive', 'v3', http=self._http)
                 except HttpAccessTokenRefreshError as e:
                     warnings.warn("Error refreshing token: %s"%e)
                     time.sleep(2**retries+random.random())
@@ -255,6 +255,11 @@ class GoogleDriveStorage(Storage):
                     if retries > 5:
                         raise RuntimeError("Exceeded retry limit")
         return self._drive_service
+
+    def _get_token(self):
+        #ensure the drive service exists
+        self.service
+        return self._creds.get_access_token(self._http)[0]
 
     def _split_path(self, path):
         """
