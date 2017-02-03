@@ -470,6 +470,8 @@ class GoogleDriveStorage(Storage):
         Returns an absolute URL where the file's contents can be accessed
         directly by a Web browser.
         """
+        return 'https://drive.google.com/a/berkeley.edu/uc?id={fileId}&export=download'.format(fileId=name)
+        
         file_data = self._get(name,fields="webContentLink")
         if file_data is None:
             return None
