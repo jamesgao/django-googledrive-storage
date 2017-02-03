@@ -248,7 +248,7 @@ class GoogleDriveStorage(Storage):
                         self._creds = self._creds.create_delegated(self._delegate)
                     self._http = self._creds.authorize(httplib2.Http())
                     self._drive_service = build('drive', 'v3', http=self._http)
-                    self._last = time.time()        s
+                    self._last = time.time()
                 except HttpAccessTokenRefreshError as e:
                     warnings.warn("Error refreshing token: %s"%e)
                     time.sleep(2**retries+random.random())
@@ -355,6 +355,13 @@ class GoogleDriveStorage(Storage):
     def _get(self, fileId, **kwargs):
         return self.service.files().get(fileId=fileId, **kwargs).execute()
 
+    def _set_permission(self, fileId, permissions=None):
+        if permissions is None:
+            permissions = self._permissions
+        # Setting up permissions
+        for p in permissions:
+            self.service.permissions().create(fileId=fileId, body=p, sendNotificationEmail=False).execute()
+
     def update_permissions(self, permissions):
         if isinstance(permissions, (tuple, list,)):
             if len(permissions) > 0 and isinstance(permissions[0], GoogleDriveFilePermission):
@@ -403,9 +410,7 @@ class GoogleDriveStorage(Storage):
             body=body,
             media_body=media_body).execute(num_retries=20)
 
-        # Setting up permissions
-        for p in self._permissions:
-            self.service.permissions().create(fileId=file_data["id"], body=p, sendNotificationEmail=False).execute()
+        self._set_permission(file_data['id'], self._permissions)
 
         return file_data['id']
 
