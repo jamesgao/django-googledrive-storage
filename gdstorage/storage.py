@@ -272,7 +272,7 @@ class GoogleDriveStorage(Storage):
         """
         return [p for p in path.split("/") if len(p) > 0]
 
-    def _get_or_create_folder(self, path, parent_id=None):
+    def _get_or_create_folder(self, path):
         """
         Create a folder on Google Drive.
         It creates folders recursively.
@@ -284,27 +284,18 @@ class GoogleDriveStorage(Storage):
         :type parent_id: string
         :returns: dict
         """
-        folder_data = self._find_file(path, parent_id)
+        folder_data = self._find_file(path)
         if folder_data is None:
-            # Folder does not exists, have to create
-            split_path = self._split_path(path)
-            current_folder_data = None
-            for p in split_path:
-                meta_data = {
-                    'name': p,
-                    'mimeType': self._GOOGLE_DRIVE_FOLDER_MIMETYPE_
-                }
-                if current_folder_data is not None:
-                    meta_data['parents'] = [current_folder_data['id']]
-                else:
-                    # This is the first iteration loop so we have to set the parent_id
-                    # obtained by the user, if available
-                    if parent_id is not None:
-                        meta_data['parents'] = [parent_id]
-                current_folder_data = self.service.files().create(body=meta_data).execute()
-            return current_folder_data
-        else:
-            return folder_data
+            root, current = os.path.split(path)
+            meta = {
+                'name': current,
+                'mimeType': self._GOOGLE_DRIVE_FOLDER_MIMETYPE_
+            }
+            if root not in ("", "/"):
+                meta['parents'] = [self._get_or_create_folder(root)['id']]
+            
+            return self.service.files().create(body=meta).execute()
+        return folder_data
 
     def _find_file(self, filename, parent_id=None):
         """
