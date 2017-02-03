@@ -293,7 +293,7 @@ class GoogleDriveStorage(Storage):
             }
             if root not in ("", "/"):
                 meta['parents'] = [self._get_or_create_folder(root)['id']]
-            
+
             return self.service.files().create(body=meta).execute()
         return folder_data
 
@@ -376,6 +376,11 @@ class GoogleDriveStorage(Storage):
         fileId = None
         if isinstance(name, tuple):
             name, fileId = name
+
+        #avoid duplicate names by deleting existing file
+        meta = self._find_file(name)
+        if meta is not None:
+            self.delete(meta['id'])
 
         split_path = self._split_path(name)
         folder_path = os.path.sep.join(split_path[:-1])
